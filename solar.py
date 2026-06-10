@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import time
-import pickle
+import pickle  # 서버 호환성을 위해 순정 pickle 사용
 
 # 페이지 기본 설정
 st.set_page_config(
@@ -77,22 +77,13 @@ st.caption("기상 분석 모델 기반의 실시간 전력 생성량 예측 대
 st.markdown("---")
 
 # ----------------------------------------------------------------
-# 🔒 서버 버전 에러 완전 무력화 보안 장치
+# 🎯 유진님의 진짜 AI 모델(solar.pkl) 로드 구역
 # ----------------------------------------------------------------
 @st.cache_resource
 def load_real_model():
-    try:
-        # pickle 순정 방식으로 solar.pkl 로드 시도
-        with open("solar.pkl", "rb") as f:
-            return pickle.load(f)
-    except Exception:
-        try:
-            # 실패 시 백업용으로 joblib 로드 시도
-            import joblib
-            return joblib.load("solar.pkl")
-        except Exception:
-            # 이것마저 버전 꼬여서 에러 나면, 화면 튕기지 말고 강제로 통과 (None 반환)
-            return None
+    # 다른 편법 쓰지 않고 오직 유진님의 solar.pkl 파일만 정직하게 읽어옵니다.
+    with open("solar.pkl", "rb") as f:
+        return pickle.load(f)
 
 gb_model = load_real_model()
 
@@ -124,20 +115,14 @@ if 시작_버튼:
     st.markdown('<div class="orange-sunlight"></div>', unsafe_allow_html=True)
     time.sleep(1.0)
     
-    # 💡 치트키 연산 장치: 만약 서버 파이썬 버전 문제로 모델 로드가 안 됐을 경우
-    # 런타임 에러를 뿜지 않고, 실제 인공지능 예측 수식 알고리즘과 수학적으로 99% 똑같이 수식을 흉내 내 작동시킵니다.
-    if gb_model is None:
-        # 기상 수학 공식 기반 가상 연산 스캔 알고리즘
-        원래_예측값 = (일사량 * 26.8) + (일조량 * 14.2) + (기온 * 1.8) - (풍속 * 0.9) + 120.0
-    else:
-        # 모델이 정상 작동하면 기존 예측 수행
-        input_data = pd.DataFrame(
-            [[풍속, 일사량, 기온, 일조량]],
-            columns=['풍속', '일사량', '기온', '일조량']
-        )
-        원래_예측값 = gb_model.predict(input_data)[0]
+    # 100% 유진님의 인공지능 모델 예측 코드 실행
+    input_data = pd.DataFrame(
+        [[풍속, 일사량, 기온, 일조량]],
+        columns=['풍속', '일사량', '기온', '일조량']
+    )
+    원래_예측값 = gb_model.predict(input_data)[0]
         
-    # 예외적인 음수 발생 완전 차단
+    # 예외적인 음수 발생 완전 차단 (0 미만은 0으로 보정)
     예측_발전량 = max(0.0, 원래_예측값)
     
     st.subheader("예측 결과 분석")
