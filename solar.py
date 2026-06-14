@@ -2,10 +2,10 @@ import streamlit as st
 import pandas as pd
 import joblib
 
-# 1. 모델 로드
+# 1. 모델 로드 (realsolar.pkl 파일 로드)
 @st.cache_resource
 def load_model():
-    return joblib.load("solar.pkl")
+    return joblib.load("realsolar.pkl")
 
 try:
     gb_model = load_model()
@@ -33,40 +33,43 @@ humidity = st.slider("상대습도를 입력하세요 (%)", 0, 100, 50, 1)
 # 3. 예측 실행 버튼
 if st.button("발전량 예측하기"):
     if gb_model is not None:
-        # DataFrame으로 변환
-        input_data = pd.DataFrame(
-            [[wind_speed, sunshine, radiation, temperature, humidity]],
-            columns=['풍속', '일조량', '일사량', '기온', '상대습도']
-        )
-        
         try:
-            # 3. 예측 (Feature Name 불일치 에러 방지를 위해 .values 사용)
+            # 시도 1: 상대습도가 포함된 5개 변수로 예측 진행
+            input_data = pd.DataFrame(
+                [[wind_speed, sunshine, radiation, temperature, humidity]],
+                columns=['풍속', '일조량', '일사량', '기온', '상대습도']
+            )
             predicted_production = gb_model.predict(input_data.values)[0]
             
-            # 물리적으로 불가능한 음수 발전량은 0으로 처리한다.
-            if predicted_production < 0: 
-                predicted_production = 0.0
-            
-            # 대규모 단지 스케일 환산 및 전력 배출 계수 기반 탄소 감축량 산출한다.
-            co2_reduction = (predicted_production * 1000) * 0.4173
-            
-            # 4. 종합 결과를 출력한다.
-            st.markdown("---")
-            st.subheader("종합 결과")
-            st.metric(label="[AI 예측 발전량]", value=f"{predicted_production:.2f} kW")
-            st.metric(label="[탄소중립 효과] 예상 탄소 감축량", value=f"{co2_reduction:,.2f} kg CO₂eq")
-            
-            # 평균보다 낮을 시 경고를 보낸다.
-            st.markdown("---")
-            if predicted_production < AVG_SOLAR_OUTPUT:
-                st.warning(
-                    f"[계통 안정화 경보] 현재 예측량({predicted_production:.2f} kW)이 과거 전체 평균치({AVG_SOLAR_OUTPUT:.2f} kW)보다 낮습니다.\n\n"
-                    "안내: 전력망 불안정성에 대비하여 대기 전력 확보 및 계통 분배 예비율을 점검하십시오."
-                )
-            else:
-                st.success(f"[정상] 발전량이 과거 평균치({AVG_SOLAR_OUTPUT:.2f} kW) 이상이므로 전력망이 안정적으로 운영 중입니다.")
-                
-        except Exception as e:
-            st.error(f"예측 도중 오류가 발생했습니다: {e}")
+        except ValueError:
+            # 시도 2: 만약 피처 개수 에러가 나면 상대습도를 제외한 4개 변수로 자동 전환 예측
+            input_data_4 = pd.DataFrame(
+                [[wind_speed, sunshine, radiation, temperature]],
+                columns=['풍속', '일조량', '일사량', '기온']
+            )
+            predicted_production = gb_model.predict(input_data_4.values)[0]
+        
+        # 물리적으로 불가능한 음수 발전량은 0으로 처리한다.
+        if predicted_production < 0: 
+            predicted_production = 0.0
+        
+        # 대규모 단지 스케일 환산 및 전력 배출 계수 기반 탄소 감축량 산출한다.
+        co2_reduction = (predicted_production * 1000) * 0.4173
+        
+        # 4. 종합 결과를 출력한다.
+        st.markdown("---")
+        st.subheader("종합 결과")
+        st.metric(label="[AI 예측 발전량]", value=f"{predicted_production:.2f} kW")
+        st.metric(label="[탄소중립 효과] 예상 탄소 감축량", value=f"{co2_reduction:,.2f} kg CO₂eq")
+        
+        # 평균보다 낮을 시 경고를 보낸다.
+        st.markdown("---")
+        if predicted_production < AVG_SOLAR_OUTPUT:
+            st.warning(
+                f"[계통 안정화 경보] 현재 예측량({predicted_production:.2f} kW)이 과거 전체 평균치({AVG_SOLAR_OUTPUT:.2f} kW)보다 낮습니다.\n\n"
+                "안내: 전력망 불안정성에 대비하여 대기 전력 확보 및 계통 분배 예비율을 점검하십시오."
+            )
+        else:
+            st.success(f"[정상] 발전량이 과거 평균치({AVG_SOLAR_OUTPUT:.2f} kW) 이상이므로 전력망이 안정적으로 운영 중입니다.")
     else:
-        st.error("모델 파일(solar.pkl)을 로드할 수 없습니다.")
+        st.error("모델 파일(realsolar.pkl)을 로드할 수 없습니다.")
