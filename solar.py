@@ -21,9 +21,9 @@ if isinstance(model_result, Exception):
 else:
     model = model_result
 
-# ☀️ 상단 타이틀 구역
-st.markdown("<h2 style='margin-bottom:0px;'>☀️ 머신러닝 기반 태양광 발전량 분석 시스템</h2>", unsafe_allow_html=True)
-st.markdown("<p style='color:#666; font-size:14px; margin-top:0px; margin-bottom:10px;'>Predictive Analytics for Solar Power Generation</p>", unsafe_allow_html=True)
+# ☀️ 상단 타이틀 구역 (생기부 주제 강조)
+st.markdown("<h2 style='margin-bottom:0px;'>☀️ 기상 분석 AI 모델링을 통한 전력 계통 안정화 시스템</h2>", unsafe_allow_html=True)
+st.markdown("<p style='color:#666; font-size:14px; margin-top:0px; margin-bottom:10px;'>기상 관측 데이터 기반 태양광 출력 예측 및 탄소중립 실현 탐구</p>", unsafe_allow_html=True)
 
 # ☀️ 좌우 2분할 레이아웃
 main_col1, main_col2 = st.columns([1, 1.2])
@@ -36,22 +36,19 @@ with main_col1:
         input_col1, input_col2 = st.columns(2)
         with input_col1:
             temp = st.slider("기온 (°C)", min_value=-20.0, max_value=45.0, value=20.0, step=0.1)
-            # 🛠️ '일조 시간'에서 실제 변수명인 '일조량'으로 수정 완료!
             sun = st.slider("일조량", min_value=0.0, max_value=15.0, value=6.0, step=0.1)
         with input_col2:
             wind = st.slider("풍속 (m/s)", min_value=0.0, max_value=25.0, value=3.5, step=0.1)
-            # 🛠️ 실제 변수명인 '일사량' 유지 및 배치 확인!
             rad = st.slider("일사량 (MJ/m²)", min_value=0.0, max_value=50.0, value=15.0, step=0.1)
             
         st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
         submit_button = st.form_submit_button("☀️ 발전량 예측하기", use_container_width=True)
 
-# --- 오른쪽 구역: 예측 결과 ---
+# --- 오른쪽 구역: 예측 결과 및 공학적 대비 알림 ---
 with main_col2:
     st.markdown("<h4 style='margin-top:0px;'>☀️ 실시간 시뮬레이션 결과</h4>", unsafe_allow_html=True)
     
     if submit_button:
-        # 🛠️ 중요: 실제 학습시킨 데이터셋 변수 순서인 ['풍속', '일사량', '기온', '일조량']을 완벽하게 맞춤!
         input_data = pd.DataFrame([[wind, rad, temp, sun]], columns=['풍속', '일사량', '기온', '일조량'])
         
         prediction = model.predict(input_data)[0]
@@ -67,6 +64,14 @@ with main_col2:
         with res_col2:
             st.metric(label="☀️ 태양광 에너지 사용 시 감축 탄소량", value=f"{co2_reduction:,.2f} kg")
 
+        # 🛠️ 데이터셋의 실제 평균 발전량 기준값 완벽 반영!
+        AVG_SOLAR_OUTPUT = 684.7460707648402
+        
+        if prediction < AVG_SOLAR_OUTPUT:
+            st.markdown("<br>", unsafe_allow_html=True)
+            # 대형 발전량 규모에 맞게 웅장한 에러 메시지로 출력
+            st.error(f"☀️ [계통 안정화 경보] 현재 예측 발전량({prediction:.2f} kW)이 과거 전체 평균 발전량({AVG_SOLAR_OUTPUT:.2f} kW)보다 적습니다. 전력망 불안정성에 대비하세요.")
+
         # 분석 요약 박스
         st.markdown(f"""
             <div style="background-color:#FFFDE7; padding:15px; border-radius:8px; border-left:5px solid #F57C00; margin-top:10px;">
@@ -77,6 +82,7 @@ with main_col2:
             </div>
         """, unsafe_allow_html=True)
         
+        # 고온 주의 알림 (30도 이상일 때)
         if temp >= 30.0:
             st.warning("☀️ [주의] 기온 30°C 이상 고온 구간으로, 온도 계수에 의해 패널 효율이 저하될 수 있습니다.")
             
