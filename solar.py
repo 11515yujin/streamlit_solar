@@ -13,11 +13,10 @@ except Exception as e:
     st.error(f"모델 로드 오류: {e}")
     gb_model = None
 
-# 실제 데이터셋의 과거 전체 평균 발전량 기준값 설정 (실제 df가 정의되어 있어야 합니다)
+# 실제 데이터셋의 과거 전체 평균 발전량 기준값 설정
 try:
     AVG_SOLAR_OUTPUT = df['발전량'].mean()
 except NameError:
-    # 만약 df가 로드되지 않은 환경을 대비한 백업용 평균값입니다. 상황에 맞게 쓰시면 됩니다.
     AVG_SOLAR_OUTPUT = 684.75
 
 st.title("태양광 발전량 예측 시스템")
@@ -41,7 +40,7 @@ if st.button("발전량 예측하기"):
         )
         
         try:
-            # 3. 예측 (gb_model 사용 - Feature Name 불일치 에러 방지를 위해 .values 사용)
+            # 3. 예측 (Feature Name 불일치 에러 방지를 위해 .values 사용)
             predicted_production = gb_model.predict(input_data.values)[0]
             
             # 물리적으로 불가능한 음수 발전량은 0으로 처리한다.
