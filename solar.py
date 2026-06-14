@@ -2,93 +2,64 @@ import streamlit as st
 import pandas as pd
 import joblib
 
-# ☀️ 페이지 설정
-st.set_page_config(page_title="태양광 발전량 예측 시스템", page_icon="☀️", layout="wide")
-
-# ☀️ 모델 불러오기
+# 1. 모델 로드
 @st.cache_resource
 def load_model():
-    try:
-        return joblib.load("solar.pkl")
-    except Exception as e:
-        return e
+    return joblib.load("solar.pkl")
 
-model_result = load_model()
+try:
+    gb_model = load_model()
+except Exception as e:
+    st.error(f"모델을 불러오는 중 오류가 발생했습니다: {e}")
+    gb_model = None
 
-if isinstance(model_result, Exception):
-    st.error(f"☀️ 모델 로드 실패: {model_result}")
-    st.stop()
-else:
-    model = model_result
+# 과거 전체 평균 발전량 기준값 설정
+AVG_SOLAR_OUTPUT = 684.75 
 
-# ☀️ 상단 타이틀 구역 (생기부 주제 강조)
-st.markdown("<h2 style='margin-bottom:0px;'>☀️ 기상 분석 AI 모델링을 통한 전력 계통 안정화 시스템</h2>", unsafe_allow_html=True)
-st.markdown("<p style='color:#666; font-size:14px; margin-top:0px; margin-bottom:10px;'>기상 관측 데이터 기반 태양광 출력 예측 및 탄소중립 실현 탐구</p>", unsafe_allow_html=True)
+st.title("태양광 발전량 예측 시스템")
+st.write("기상 데이터를 입력하면 AI 모델 기반으로 발전량을 예측합니다.")
 
-# ☀️ 좌우 2분할 레이아웃
-main_col1, main_col2 = st.columns([1, 1.2])
+# 2. 사용자 입력 받기
+st.subheader("기상 정보 입력")
+wind_speed = st.number_input("풍속 (m/s)", min_value=0.0, value=2.0, step=0.1)
+sunshine = st.number_input("일조량 (hr)", min_value=0.0, value=0.5, step=0.1)
+radiation = st.number_input("일사량 (MJ/m²)", min_value=0.0, value=1.0, step=0.1)
+temperature = st.number_input("기온 (°C)", value=20.0, step=0.1)
+humidity = st.number_input("상대습도 (%)", min_value=0.0, max_value=100.0, value=50.0, step=1.0)
 
-# --- 왼쪽 구역: 입력 폼 ---
-with main_col1:
-    with st.form(key="solar_prediction_form"):
-        st.markdown("<h4 style='margin-top:0px;'>☀️ 기상 정보 입력</h4>", unsafe_allow_html=True)
+# 3. 예측 실행 버튼
+if st.button("발전량 예측하기"):
+    if gb_model is not None:
+        # 지정된 변수 순서 매칭
+        input_data = pd.DataFrame(
+            [[wind_speed, sunshine, radiation, temperature, humidity]],
+            columns=['풍속', '일조량', '일사량', '기온', '상대습도']
+        )
         
-        input_col1, input_col2 = st.columns(2)
-        with input_col1:
-            temp = st.slider("기온 (°C)", min_value=-20.0, max_value=45.0, value=20.0, step=0.1)
-            sun = st.slider("일조량", min_value=0.0, max_value=15.0, value=6.0, step=0.1)
-        with input_col2:
-            wind = st.slider("풍속 (m/s)", min_value=0.0, max_value=25.0, value=3.5, step=0.1)
-            rad = st.slider("일사량 (MJ/m²)", min_value=0.0, max_value=50.0, value=15.0, step=0.1)
+        # 예측
+        predicted_production = gb_model.predict(input_data)[0]
+        
+        # 물리적으로 불가능한 음수 발전량 0 처리
+        if predicted_production < 0: 
+            predicted_production = 0.0
             
-        st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
-        submit_button = st.form_submit_button("☀️ 발전량 예측하기", use_container_width=True)
-
-# --- 오른쪽 구역: 예측 결과 및 공학적 대비 알림 ---
-with main_col2:
-    st.markdown("<h4 style='margin-top:0px;'>☀️ 실시간 시뮬레이션 결과</h4>", unsafe_allow_html=True)
-    
-    if submit_button:
-        input_data = pd.DataFrame([[wind, rad, temp, sun]], columns=['풍속', '일사량', '기온', '일조량'])
+        # 탄소 감축량 산출 (2023년 공표 계수 0.4173 kg CO2eq/kWh 적용, kW -> MW 스케일 업)
+        co2_reduction = (predicted_production * 1000) * 0.4173
         
-        prediction = model.predict(input_data)[0]
-        if prediction < 0: prediction = 0.0
-
-        # 탄소 감축량 계산
-        co2_reduction = (prediction * 1000) * 0.4173
-
-        # 결과 지표 노출
-        res_col1, res_col2 = st.columns(2)
-        with res_col1:
-            st.metric(label="☀️ 예상 전력 발전량", value=f"{prediction:.2f} kW")
-        with res_col2:
-            st.metric(label="☀️ 태양광 에너지 사용 시 감축 탄소량", value=f"{co2_reduction:,.2f} kg")
-
-        # 🛠️ 데이터셋의 실제 평균 발전량 기준값 완벽 반영!
-        AVG_SOLAR_OUTPUT = 684.7460707648402
+        # 결과 출력
+        st.markdown("---")
+        st.subheader("예측 결과")
+        st.metric(label="AI 예측 발전량", value=f"{predicted_production:.2f} kW")
+        st.metric(label="예상 탄소 감축량", value=f"{co2_reduction:,.2f} kg CO₂eq")
         
-        if prediction < AVG_SOLAR_OUTPUT:
-            st.markdown("<br>", unsafe_allow_html=True)
-            # 대형 발전량 규모에 맞게 웅장한 에러 메시지로 출력
-            st.error(f"☀️ [계통 안정화 경보] 현재 예측 발전량({prediction:.2f} kW)이 과거 전체 평균 발전량({AVG_SOLAR_OUTPUT:.2f} kW)보다 적습니다. 전력망 불안정성에 대비하세요.")
-
-        # 분석 요약 박스
-        st.markdown(f"""
-            <div style="background-color:#FFFDE7; padding:15px; border-radius:8px; border-left:5px solid #F57C00; margin-top:10px;">
-                <b style="color:#E65100; font-size:14px;">☀️ 인공지능 분석 및 탄소 배출 계수 산정 요약</b><br>
-                <p style="color:#4E342E; font-size:13px; margin:3px 0 0 0; line-height:1.4;">
-                    예측 전력 출력값은 <b>{prediction:.2f} kW</b>입니다. 정부 지침(GHG Protocol Scope 2)에 의거하여 자가소비형 태양광의 배출 계수는 <b>0 tCO₂eq/MWh</b>이므로, 한전 전력 대비 <b>100% 간접 배출량이 상쇄</b>되어 총 <b>{co2_reduction:,.2f} kg CO₂eq</b>의 온실가스를 감축합니다.
-                </p>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        # 고온 주의 알림 (30도 이상일 때)
-        if temp >= 30.0:
-            st.warning("☀️ [주의] 기온 30°C 이상 고온 구간으로, 온도 계수에 의해 패널 효율이 저하될 수 있습니다.")
-            
+        # 전력 계통 안정화 선제 경보 모듈
+        st.markdown("---")
+        if predicted_production < AVG_SOLAR_OUTPUT:
+            st.warning(
+                f"[계통 안정화 경보] 현재 예측량({predicted_production:.2f} kW)이 과거 전체 평균치({AVG_SOLAR_OUTPUT:.2f} kW)보다 낮습니다.\n\n"
+                "안내: 전력망 불안정성에 대비하여 대기 전력 확보 및 계통 분배 예비율을 점검하십시오."
+            )
+        else:
+            st.success(f"[정상] 발전량이 과거 평균치({AVG_SOLAR_OUTPUT:.2f} kW) 이상이므로 전력망이 안정적으로 운영 중입니다.")
     else:
-        st.info("👈 왼쪽에서 기상 정보를 입력한 후 [☀️ 발전량 예측하기] 버튼을 눌러주세요!")
-
-# 최하단 풋터
-st.markdown("<hr style='margin-top:20px; margin-bottom:5px;'>", unsafe_allow_html=True)
-st.caption("☀️ 모델: Gradient Boosting Regressor | 근거: 공표된 2023년 전력배출계수 (0.4173 tCO2eq/MWh)")
+        st.error("모델이 로드되지 않아 예측을 수행할 수 없습니다.")
